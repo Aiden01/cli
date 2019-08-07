@@ -1,49 +1,65 @@
-use std::path::{Path, PathBuf};
+use futures::compat::Future01CompatExt;
+use hyper::client::Client;
+use hyper::header::CONTENT_TYPE;
+use hyper::{Body, Method, Request};
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use structopt::StructOpt;
-use promptly::prompt;
+use crate::error::AppError;
 
-use crate::config::{get_config, write_config, Config};
-use crate::error::BunnyError;
+const BOUNDARY: &'static str = "------------------------ea3bbcf87c101592";
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "bunnycli", about = "A CLI for BunnyCdn")]
-pub enum Command {
-    #[structopt(name = "login")]
-    Login,
-    /// Uploads a file
-    #[structopt(name = "upload")]
-    Upload {
-        /// File to upload
-        #[structopt(name = "FILE", parse(from_os_str))]
-        file: PathBuf,
-        /// Whether to copy the link to the clipboard
-        #[structopt(short = "c", long = "copy")]
-        copy: bool,
-    },
+#[structopt(name = "bayfiles-cli", about = "A CLI for Bayfiles")]
+pub struct Context {
+    /// File to upload
+    #[structopt(name = "FILE", parse(from_os_str))]
+    file: PathBuf,
+    /// Whether to copy the link to the clipboard
+    #[structopt(short = "c", long = "copy")]
+    copy: bool,
 }
 
-fn login() -> Result<(), BunnyError> {
-    let token: String = prompt("Enter your token: ");
-    let config = Config { token, connected: true };
-    write_config(Path::new("config.toml"), config)?;
-    println!("You are successfully connected.");
+
+fn get_image_data(file: PathBuf) -> Result<Vec<u8>, AppError> {
+    let mut data = Vec::new();
+    write!(&mut data, "--{}\r\n", BOUNDARY)?;
+    write!(
+        &mut data,
+        "{}",
+        &format!(
+            "Content-Disposition: form-data; name=\"smfile\"; filename=\"{}\"\r\n",
+            file.to_str().expect("Cannot convert pathbuf to str"))
+    )?;
+    write!(&mut data, "Content-Type: image/jpeg\r\n")?;
+    write!(&mut data, "\r\n")?;
+
+    let mut f = File::open(file)?;
+    f.read_to_end(&mut data)?;
+
+    write!(&mut data, "\r\n")?;
+    write!(&mut data, "--{}--\r\n", BOUNDARY)?;
+
+    Ok(data)
+}
+
+pub async fn upload(context: &Context) -> Result<(), AppError> {
+    let Context { file, .. } = context;
+    let client = Client::new();
+    let image_data = get_image_data(file.to_path_buf())?;
+    let mut req = Request::new(Body::from(image_data));
+    req.headers_mut().insert(
+        CONTENT_TYPE,
+        format!("multipart/form-data; boundary={}", BOUNDARY)
+            .parse()
+            .expect("Cannot parse header"),
+    );
+    *req.method_mut() = Method::POST;
+    *req.uri_mut() = "http://bayfiles.com/api/upload".parse().expect("Cannot parse uri");
+    let response = client.request(req).compat().await?;
+    let body = response.body();
+    println!("body: {:?}", body);
+
     Ok(())
-}
-
-fn upload(file: PathBuf, copy: bool, config: Config) -> Result<(), BunnyError> {
-    let Config { token, connected } = config;
-    if !connected {
-        println!("You are not connected. Type bunnycli login to connect.");
-        return Ok(());
-    }
-
-    Ok(())
-}
-
-pub fn run(command: Command) -> Result<(), BunnyError> {
-    let config = get_config(Path::new("config.toml"))?;
-    match command {
-        Command::Login => login(),
-        Command::Upload { file, copy } => upload(file, copy, config),
-    }
 }

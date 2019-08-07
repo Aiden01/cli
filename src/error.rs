@@ -1,34 +1,43 @@
+use hyper::error::Error as HyperError;
 use std::convert::From;
 use std::io::Error;
 use toml::{de, ser};
 use xdg::BaseDirectoriesError;
 
-pub enum BunnyError {
+#[derive(Debug)]
+pub enum AppError {
     ConfigError(String),
     IOError(String),
     ParseError(String),
+    HttpError(String),
 }
 
-impl From<de::Error> for BunnyError {
+impl From<HyperError> for AppError {
+    fn from(error: HyperError) -> Self {
+        AppError::HttpError(error.to_string())
+    }
+}
+
+impl From<de::Error> for AppError {
     fn from(error: de::Error) -> Self {
-        BunnyError::ParseError(error.to_string())
+        AppError::ParseError(error.to_string())
     }
 }
 
-impl From<ser::Error> for BunnyError {
+impl From<ser::Error> for AppError {
     fn from(error: ser::Error) -> Self {
-        BunnyError::ParseError(error.to_string())
+        AppError::ParseError(error.to_string())
     }
 }
 
-impl From<Error> for BunnyError {
+impl From<Error> for AppError {
     fn from(error: Error) -> Self {
-        BunnyError::IOError(error.to_string())
+        AppError::IOError(error.to_string())
     }
 }
 
-impl From<BaseDirectoriesError> for BunnyError {
+impl From<BaseDirectoriesError> for AppError {
     fn from(error: BaseDirectoriesError) -> Self {
-        BunnyError::ConfigError(error.to_string())
+        AppError::ConfigError(error.to_string())
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "bunnycdn-cli"
+name = "bayfiles-cli"
 version = "0.1.0"
 authors = ["aiden01 <liangu@protonmail.com>"]
 edition = "2018"
@@ -12,4 +12,6 @@ toml = "0.5"
 serde_derive = "1.0.98"
 serde = "1.0.98"
 structopt = "0.2.18"
-promptly = "0.1.5"
+tokio = { git = "https://github.com/tokio-rs/tokio", branch = "master" } 
+hyper = "0.12"
+futures-preview = { version = "0.3.0-alpha.14", features = ["compat"] }
