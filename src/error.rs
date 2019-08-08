@@ -1,4 +1,4 @@
-use hyper::error::Error as HyperError;
+use reqwest::Error as ReqwestError;
 use std::convert::From;
 use std::io::Error;
 use toml::{de, ser};
@@ -10,10 +10,17 @@ pub enum AppError {
     IOError(String),
     ParseError(String),
     HttpError(String),
+    Other(String),
 }
 
-impl From<HyperError> for AppError {
-    fn from(error: HyperError) -> Self {
+impl From<std::option::NoneError> for AppError {
+    fn from(_: std::option::NoneError) -> Self {
+        AppError::Other(String::from("None"))
+    }
+}
+
+impl From<ReqwestError> for AppError {
+    fn from(error: ReqwestError) -> Self {
         AppError::HttpError(error.to_string())
     }
 }
